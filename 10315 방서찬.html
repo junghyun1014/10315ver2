@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PN접합 다이오드 생성기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.95); }
+        }
+        .animate-pulse-slow {
+            animation: pulse-slow 3s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen m-0 p-0 overflow-hidden flex flex-col">
+
+    <header class="bg-slate-900 text-white px-4 py-2.5 shadow-lg flex justify-between items-center z-20 border-b border-slate-800">
+        <h1 class="text-base font-bold flex items-center gap-2">
+            <span class="bg-blue-600 p-1.5 rounded-lg text-white text-xs shadow-md">⚡</span>
+            <span>PN접합 다이오드 공정 및 캐리어 시뮬레이터</span>
+        </h1>
+        <div class="flex items-center gap-2">
+            <button id="doping-btn" onclick="startDetailedDopingSteps()" class="bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold py-1.5 px-3.5 text-xs rounded-lg shadow transition-all duration-200 flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.05 15.12a2 2 0 00-1.022.547l-1.02 1.02a2 2 0 00-.586 1.414V20a2 2 0 002 2h14a2 2 0 002-2v-1.896a2 2 0 00-.586-1.414l-1.02-1.02zM12 3v9m0 0l3-3m-3 3L9 9"></path>
+                </svg>
+                <span>도핑 공정 시작</span>
+            </button>
+            <button id="prev-step-btn" onclick="goToPrevStep()" class="bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white font-bold py-1.5 px-3 text-xs rounded-lg shadow transition-all duration-200 flex items-center gap-1 cursor-pointer hidden">
+                <span>⬅ 이전</span>
+            </button>
+            <button id="next-step-btn" onclick="goToNextStep()" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-1.5 px-3.5 text-xs rounded-lg shadow transition-all duration-200 flex items-center gap-1.5 cursor-pointer hidden">
+                <span>다음 단계 ➔</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 relative flex overflow-hidden">
+        <!-- Center Canvas / Display Area -->
+        <div id="display-area" class="flex-1 flex flex-col items-center justify-center relative bg-gradient-to-br from-slate-100 to-slate-200 p-3 overflow-hidden">
+            <div id="placeholder-text" class="text-center bg-white p-6 rounded-2xl shadow-xl border border-slate-200 max-w-sm">
+                <div class="text-3xl mb-2">🔬</div>
+                <h3 class="text-sm font-bold text-slate-800 mb-1">반도체 시뮬레이터 준비됨</h3>
+                <p class="text-slate-500 text-xs mb-3">오른쪽 버튼을 누르거나 상단의 '도핑 공정 시작'을 눌러 실리콘 반도체 제작 과정을 확인하세요.</p>
+            </div>
+            
+            <!-- Diode Container -->
+            <div id="diode-container" class="hidden flex-col items-center animate-fade-in relative max-w-3xl w-full">
+                <!-- Status Banner & Step Description -->
+                <div class="w-full text-center mb-2">
+                    <div id="status-badge" class="inline-block px-3 py-1 bg-slate-200 text-slate-700 font-bold rounded-full text-xs shadow transition-all duration-300">
+                        순수 실리콘 기판 (Intrinsic Silicon Crystal)
+                    </div>
+                    <!-- Detailed Step Info Box -->
+                    <div id="step-info" class="mt-1.5 text-xs text-slate-700 bg-white/90 backdrop-blur px-3 py-2 rounded-xl border border-slate-200/80 shadow min-h-[42px] flex flex-col items-center justify-center font-medium leading-relaxed">
+                        <span>상단의 <b>'도핑 공정 시작'</b> 버튼을 누르면 이온 주입 및 공핍층 형성 공정을 시작할 수 있습니다.</span>
+                    </div>
+                </div>
+
+                <!-- Diode & Junction Visual Viewport -->
+                <div class="flex items-center shadow-xl rounded-xl overflow-hidden border-3 border-slate-800 bg-slate-950 relative w-full h-48 my-1">
+                    <!-- P-type Region -->
+                    <div id="p-region" class="w-1/2 h-full bg-gradient-to-r from-red-950/60 to-red-900/40 border-r-2 border-dashed border-amber-400/60 flex flex-col items-center justify-between text-white font-bold relative transition-all duration-500 overflow-hidden p-2">
+                        <div class="z-20 text-center bg-red-950/80 px-3 py-1 rounded-full border border-red-500/30 shadow">
+                            <span class="text-xs text-red-300 font-bold">P형 영역 (P-type)</span>
+                            <span class="block text-[9px] font-normal text-red-200/80" id="p-subtext">3가 불순물(붕소, B) 주입 영역</span>
+                        </div>
+                        
+                        <!-- P region Particles Container -->
+                        <div id="p-particles" class="absolute inset-0 grid grid-cols-6 grid-rows-4 gap-1 p-2 pt-10 opacity-95 transition-all duration-500 items-center justify-items-center">
+                            <!-- Populated dynamically -->
+                        </div>
+
+                        <!-- Legend/Count for P Region -->
+                        <div class="z-20 text-[10px] font-normal text-red-200 bg-slate-900/90 px-2.5 py-1 rounded-full border border-red-500/20 flex gap-2 shadow">
+                            <span class="text-pink-300 font-semibold" id="hole-count">양공(○): 0개</span>
+                        </div>
+                    </div>
+
+                    <!-- Depletion Region Overlay (Dynamically expanded) -->
+                    <div id="depletion-layer" class="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0 bg-yellow-500/25 border-x-2 border-yellow-400 z-10 transition-all duration-700 flex flex-col items-center justify-center opacity-0 backdrop-blur-[1px]">
+                        <span class="text-[9px] text-yellow-200 font-bold bg-slate-900/95 px-2 py-0.5 rounded shadow border border-yellow-500/50 whitespace-nowrap mb-1">공핍층 (Depletion Zone)</span>
+                        <div id="depletion-ions" class="flex gap-3 my-0.5 text-[10px] font-bold bg-slate-900/80 px-2 py-1 rounded-lg border border-yellow-500/30">
+                            <!-- Populated with stationary acceptor (-)/donor (+) ions -->
+                        </div>
+                        <span class="text-[9px] text-yellow-300 font-semibold whitespace-nowrap mt-1 bg-slate-900/90 px-1.5 py-0.5 rounded shadow" id="barrier-pot">전위 장벽 (0.7V)</span>
+                    </div>
+
+                    <!-- N-type Region -->
+                    <div id="n-region" class="w-1/2 h-full bg-gradient-to-r from-blue-900/40 to-blue-950/60 flex flex-col items-center justify-between text-white font-bold relative transition-all duration-500 overflow-hidden p-2">
+                        <div class="z-20 text-center bg-blue-950/80 px-3 py-1 rounded-full border border-blue-500/30 shadow">
+                            <span class="text-xs text-blue-300 font-bold">N형 영역 (N-type)</span>
+                            <span class="block text-[9px] font-normal text-blue-200/80" id="n-subtext">5가 불순물(인, P) 주입 영역</span>
+                        </div>
+                        
+                        <!-- N region Particles Container -->
+                        <div id="n-particles" class="absolute inset-0 grid grid-cols-6 grid-rows-4 gap-1 p-2 pt-10 opacity-95 transition-all duration-500 items-center justify-items-center">
+                            <!-- Populated dynamically -->
+                        </div>
+
+                        <!-- Legend/Count for N Region -->
+                        <div class="z-20 text-[10px] font-normal text-blue-200 bg-slate-900/90 px-2.5 py-1 rounded-full border border-blue-500/20 flex gap-2 shadow">
+                            <span class="text-yellow-300 font-semibold" id="electron-count">자유전자(●): 0개</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visual Legend Bar -->
+                <div class="w-full flex flex-wrap justify-between items-center mt-1.5 px-3 py-2 text-slate-700 font-medium text-[10px] bg-white rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <span class="flex items-center gap-1 font-bold text-red-600"><span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block shadow"></span> 애노드 (+)</span>
+                        <span class="flex items-center gap-1 font-bold text-blue-600"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block shadow"></span> 캐소드 (-)</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-slate-500 inline-block"></span> 실리콘(Si)</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-yellow-300 border border-yellow-600 inline-block shadow-sm"></span> 자유 전자 (●)</span>
+                        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full border border-pink-400 bg-pink-100 inline-block shadow-sm"></span> 양공 (○)</span>
+                    </div>
+                </div>
+
+                <!-- Process Steps Progress Bar -->
+                <div id="step-progress-container" class="w-full mt-2 hidden bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex justify-between text-[10px] text-slate-600 mb-1 font-bold">
+                        <span id="step-1-label" class="px-2 py-0.5 rounded transition-all">1. 불순물 주입</span>
+                        <span id="step-2-label" class="px-2 py-0.5 rounded transition-all">2. 열처리</span>
+                        <span id="step-3-label" class="px-2 py-0.5 rounded transition-all">3. 캐리어 생성</span>
+                        <span id="step-4-label" class="px-2 py-0.5 rounded transition-all">4. 확산 운동</span>
+                        <span id="step-5-label" class="px-2 py-0.5 rounded transition-all">5. 공핍층 완결</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                        <div id="step-progress-bar" class="bg-gradient-to-r from-amber-500 via-blue-500 to-emerald-600 h-full w-0 rounded-full transition-all duration-500"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <aside class="w-60 bg-white border-l border-slate-200 p-4 flex flex-col items-center justify-start gap-3 shadow-xl z-10 overflow-y-auto">
+            <h2 class="text-xs font-bold text-slate-800 mb-0 flex items-center gap-1.5">
+                <span>🎛️</span> 제어 패널
+            </h2>
+            <p class="text-[10px] text-slate-500 text-center mb-1">버튼을 눌러 다이오드 생성 및 공정을 진행하세요.</p>
+            <button id="create-btn" onclick="createDiode()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-2.5 px-3 text-xs rounded-xl shadow transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>✨ PN접합 다이오드 생성</span>
+            </button>
+            <button id="reset-btn" onclick="removeDiode()" class="w-full bg-slate-200 hover:bg-slate-300 active:bg-slate-400 text-slate-700 font-semibold py-2 px-3 text-xs rounded-xl shadow transition-all duration-200 hidden flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>🔄 처음으로 초기화</span>
+            </button>
+
+            <!-- Visual Legend & Info Card -->
+            <div class="mt-auto w-full bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-[10px] text-slate-600 space-y-1">
+                <div class="font-bold text-slate-800 flex items-center gap-1">
+                    <span>💡 시각화 가이드</span>
+                </div>
+                <p>• <b>보라색 점(B)</b>: 3가 붕소</p>
+                <p>• <b>청록색 점(P)</b>: 5가 인</p>
+                <p>• <b>노란색 점(●)</b>: 자유 전자</p>
+                <p>• <b>분홍색 고리(○)</b>: 양공(Hole)</p>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        let isCreated = false;
+        let currentStep = 0;
+
+        function createDiode() {
+            const diode = document.getElementById('diode-container');
+            const placeholder = document.getElementById('placeholder-text');
+            const resetBtn = document.getElementById('reset-btn');
+
+            diode.classList.remove('hidden');
+            diode.classList.add('flex');
+            placeholder.classList.add('hidden');
+            resetBtn.classList.remove('hidden');
+            isCreated = true;
+            
+            resetDopingVisuals();
+        }
+
+        function removeDiode() {
+            currentStep = 0;
+            const diode = document.getElementById('diode-container');
+            const placeholder = document.getElementById('placeholder-text');
+            const resetBtn = document.getElementById('reset-btn');
+
+            diode.classList.add('hidden');
+            diode.classList.remove('flex');
+            placeholder.classList.remove('hidden');
+            resetBtn.classList.add('hidden');
+            
+            document.getElementById('next-step-btn').classList.add('hidden');
+            document.getElementById('prev-step-btn').classList.add('hidden');
+            isCreated = false;
+        }
+
+        function renderSiliconLattice() {
+            const pParticles = document.getElementById('p-particles');
+            const nParticles = document.getElementById('n-particles');
+
+            pParticles.innerHTML = '';
+            nParticles.innerHTML = '';
+            document.getElementById('hole-count').innerText = "양공(○): 0개";
+            document.getElementById('electron-count').innerText = "자유전자(●): 0개";
+
+            for (let i = 0; i < 24; i++) {
+                pParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-500/80 shadow-inner"></div>`;
+                nParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-500/80 shadow-inner"></div>`;
+            }
+        }
+
+        function startDetailedDopingSteps() {
+            if (!isCreated) createDiode();
+            currentStep = 1;
+            renderStep(currentStep);
+        }
+
+        function goToNextStep() {
+            if (currentStep < 5) {
+                currentStep++;
+                renderStep(currentStep);
+            }
+        }
+
+        function goToPrevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                renderStep(currentStep);
+            }
+        }
+
+        function updateStepLabels(step) {
+            for (let i = 1; i <= 5; i++) {
+                const label = document.getElementById(`step-${i}-label`);
+                if (i === step) {
+                    label.className = "px-2 py-0.5 rounded bg-blue-600 text-white font-bold shadow";
+                } else if (i < step) {
+                    label.className = "px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold";
+                } else {
+                    label.className = "px-2 py-0.5 rounded text-slate-400 font-normal";
+                }
+            }
+        }
+
+        function renderStep(step) {
+            const statusBadge = document.getElementById('status-badge');
+            const stepInfo = document.getElementById('step-info');
+            const progressContainer = document.getElementById('step-progress-container');
+            const progressBar = document.getElementById('step-progress-bar');
+            const pParticles = document.getElementById('p-particles');
+            const nParticles = document.getElementById('n-particles');
+            const depletionLayer = document.getElementById('depletion-layer');
+            const depletionIons = document.getElementById('depletion-ions');
+
+            const nextBtn = document.getElementById('next-step-btn');
+            const prevBtn = document.getElementById('prev-step-btn');
+
+            progressContainer.classList.remove('hidden');
+            nextBtn.classList.remove('hidden');
+            prevBtn.classList.toggle('hidden', step === 1);
+
+            updateStepLabels(step);
+
+            if (step === 1) {
+                nextBtn.innerHTML = "<span>다음 단계 (열처리) ➔</span>";
+                statusBadge.innerText = "1단계: 불순물 이온주입 (Ion Implantation)";
+                statusBadge.className = "inline-block px-3 py-1 bg-amber-500 text-white font-bold rounded-full text-xs shadow";
+                stepInfo.innerHTML = "<b>[1단계 - 불순물 침투]</b> 순수 실리콘 결정 격자 사이로 <b>3가 붕소 점(보라색 B)</b>과 <b>5가 인 점(청록색 P)</b>을 고에너지로 주입합니다.";
+                progressBar.style.width = "20%";
+
+                depletionLayer.classList.add('opacity-0');
+                depletionLayer.style.width = '0px';
+
+                document.getElementById('hole-count').innerText = "양공(○): 0개";
+                document.getElementById('electron-count').innerText = "자유전자(●): 0개";
+
+                pParticles.innerHTML = '';
+                nParticles.innerHTML = '';
+
+                for (let i = 0; i < 24; i++) {
+                    if (i % 3 === 0) {
+                        pParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full bg-purple-500 ring-2 ring-purple-300 animate-bounce flex items-center justify-center text-[8px] text-white font-bold">B</div>`;
+                        nParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full bg-teal-400 ring-2 ring-teal-200 animate-bounce flex items-center justify-center text-[8px] text-slate-900 font-bold">P</div>`;
+                    } else {
+                        pParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-600/60"></div>`;
+                        nParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-600/60"></div>`;
+                    }
+                }
+            } else if (step === 2) {
+                nextBtn.innerHTML = "<span>다음 단계 (캐리어 생성) ➔</span>";
+                statusBadge.innerText = "2단계: 열처리(Annealing) 및 결정 정렬";
+                statusBadge.className = "inline-block px-3 py-1 bg-blue-600 text-white font-bold rounded-full text-xs shadow";
+                stepInfo.innerHTML = "<b>[2단계 - 격자 치환]</b> 고온 열처리 공정을 통해 주입된 불순물 점들이 실리콘 원자 격자 자리에 안정적으로 치환 결합합니다.";
+                progressBar.style.width = "40%";
+
+                depletionLayer.classList.add('opacity-0');
+                depletionLayer.style.width = '0px';
+
+                pParticles.innerHTML = '';
+                nParticles.innerHTML = '';
+
+                for (let i = 0; i < 24; i++) {
+                    if (i % 3 === 0) {
+                        pParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full bg-purple-600 border border-purple-300 flex items-center justify-center text-[8px] text-white font-bold">B</div>`;
+                        nParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full bg-teal-500 border border-teal-200 flex items-center justify-center text-[8px] text-slate-900 font-bold">P</div>`;
+                    } else {
+                        pParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-500/90"></div>`;
+                        nParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-500/90"></div>`;
+                    }
+                }
+            } else if (step === 3) {
+                nextBtn.innerHTML = "<span>다음 단계 (전자 확산 및 움직임) ➔</span>";
+                statusBadge.innerText = "3단계: 자유 전자 점(●) 및 양공 점(○) 생성";
+                statusBadge.className = "inline-block px-3 py-1 bg-indigo-600 text-white font-bold rounded-full text-xs shadow";
+                stepInfo.innerHTML = "<b>[3단계 - 캐리어 방출]</b> P형 영역에는 전자가 부족해 <b>양공 점(분홍 ring ○)</b>이 활성화되고, N형 영역에는 남는 <b>자유 전자 점(노란 점 ●)</b>이 생성됩니다.";
+                progressBar.style.width = "60%";
+
+                depletionLayer.classList.add('opacity-0');
+                depletionLayer.style.width = '0px';
+
+                document.getElementById('hole-count').innerText = "양공(○): 12개";
+                document.getElementById('electron-count').innerText = "자유전자(●): 12개";
+
+                pParticles.innerHTML = '';
+                nParticles.innerHTML = '';
+
+                for (let i = 0; i < 24; i++) {
+                    if (i % 2 === 0) {
+                        pParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full border border-pink-400 bg-pink-100 animate-pulse flex items-center justify-center text-[8px] text-pink-700 font-bold">○</div>`;
+                        nParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full bg-yellow-300 ring-1 ring-yellow-400 animate-pulse flex items-center justify-center text-[8px]">●</div>`;
+                    } else {
+                        pParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-600/50"></div>`;
+                        nParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-600/50"></div>`;
+                    }
+                }
+            } else if (step === 4) {
+                nextBtn.innerHTML = "<span>다음 단계 (공핍층 완결) ➔</span>";
+                statusBadge.innerText = "4단계: 자유 전자(●)의 동적 확산 및 이동";
+                statusBadge.className = "inline-block px-3 py-1 bg-orange-600 text-white font-bold rounded-full text-xs shadow";
+                stepInfo.innerHTML = "<b>[4단계 - 전자 움직임]</b> N형 영역의 자유 전자 점(●)들이 접합면을 넘어 P형 쪽으로 활발하게 이동(확산)하기 시작합니다!";
+                progressBar.style.width = "80%";
+
+                depletionLayer.classList.remove('opacity-0');
+                depletionLayer.classList.add('opacity-100');
+                depletionLayer.style.width = '70px';
+
+                depletionIons.innerHTML = `
+                    <div class="text-[9px] text-yellow-200 font-bold animate-pulse flex items-center gap-1">
+                        <span>⚡ 전자(●)가 접합면을 건너는 중...</span>
+                    </div>
+                `;
+
+                document.getElementById('hole-count').innerText = "양공(○): 12개 (확산 반응 중)";
+                document.getElementById('electron-count').innerText = "자유전자(●): 12개 (확산 이동 중)";
+
+                pParticles.innerHTML = '';
+                nParticles.innerHTML = '';
+
+                for (let i = 0; i < 24; i++) {
+                    if (i % 5 === 0) {
+                        pParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full border border-pink-400 bg-pink-100 flex items-center justify-center text-[8px] text-pink-700 font-bold">○</div>`;
+                        nParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full bg-yellow-300 ring-2 ring-yellow-400 animate-ping flex items-center justify-center text-[8px]">●</div>`;
+                    } else if (i % 2 === 0) {
+                        pParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full border border-pink-400 bg-pink-100 flex items-center justify-center text-[8px] text-pink-700 font-bold">○</div>`;
+                        nParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full bg-yellow-300 ring-1 ring-yellow-400 animate-pulse flex items-center justify-center text-[8px]">●</div>`;
+                    } else {
+                        pParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-600/50"></div>`;
+                        nParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-600/50"></div>`;
+                    }
+                }
+            } else if (step === 5) {
+                nextBtn.innerHTML = "<span>공정 완료! (처음으로) ➔</span>";
+                statusBadge.innerText = "5단계: 재결합 및 공핍층(Depletion Zone) 형성 완료";
+                statusBadge.className = "inline-block px-3 py-1 bg-emerald-600 text-white font-bold rounded-full text-xs shadow";
+                stepInfo.innerHTML = "<b>[5단계 - 공핍층 완결]</b> 접합면에서 전자와 양공이 만나 재결합하여 소멸하고, <b>고정 이온층(공핍층)</b>과 <b>0.7V 전위 장벽</b>이 완결되었습니다!";
+                progressBar.style.width = "100%";
+
+                depletionLayer.classList.remove('opacity-0');
+                depletionLayer.classList.add('opacity-100');
+                depletionLayer.style.width = '110px';
+
+                depletionIons.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <div class="flex flex-col items-center text-red-300 bg-red-950/90 px-1.5 py-0.5 rounded border border-red-500/50">
+                            <span class="text-[8px] text-red-200">음이온</span>
+                            <span class="font-bold text-[9px]">(-)</span>
+                        </div>
+                        <div class="flex flex-col items-center text-blue-300 bg-blue-950/90 px-1.5 py-0.5 rounded border border-blue-500/50">
+                            <span class="text-[8px] text-blue-200">양이온</span>
+                            <span class="font-bold text-[9px]">(+)</span>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('hole-count').innerText = "양공(○): 8개 (중앙 4개 소멸)";
+                document.getElementById('electron-count').innerText = "자유전자(●): 8개 (중앙 4개 소멸)";
+
+                pParticles.innerHTML = '';
+                nParticles.innerHTML = '';
+
+                for (let i = 0; i < 24; i++) {
+                    if (i % 3 === 0) {
+                        pParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full border border-pink-400 bg-pink-100 flex items-center justify-center text-[8px] text-pink-700 font-bold">○</div>`;
+                        nParticles.innerHTML += `<div class="w-3.5 h-3.5 rounded-full bg-yellow-300 ring-1 ring-yellow-400 flex items-center justify-center text-[8px]">●</div>`;
+                    } else {
+                        pParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-600/50"></div>`;
+                        nParticles.innerHTML += `<div class="w-2.5 h-2.5 rounded-full bg-slate-600/50"></div>`;
+                    }
+                }
+            }
+        }
+
+        function resetDopingVisuals() {
+            currentStep = 0;
+            const statusBadge = document.getElementById('status-badge');
+            const stepInfo = document.getElementById('step-info');
+            const progressContainer = document.getElementById('step-progress-container');
+            const progressBar = document.getElementById('step-progress-bar');
+            const depletionLayer = document.getElementById('depletion-layer');
+
+            document.getElementById('next-step-btn').classList.add('hidden');
+            document.getElementById('prev-step-btn').classList.add('hidden');
+
+            statusBadge.innerText = "순수 실리콘 기판 (Intrinsic Silicon Crystal)";
+            statusBadge.className = "inline-block px-3 py-1 bg-slate-200 text-slate-700 font-bold rounded-full text-xs shadow transition-all duration-300";
+            stepInfo.innerHTML = "상단의 <b>'도핑 공정 시작'</b> 버튼을 눌러 공정을 시작하세요. 각 단계마다 <b>'다음 단계'</b> 버튼을 눌러 공핍층 형성 과정까지 직접 단계를 진행할 수 있습니다.";
+            
+            progressContainer.classList.add('hidden');
+            progressBar.style.width = "0%";
+            depletionLayer.classList.add('opacity-0');
+            depletionLayer.style.width = '0px';
+
+            renderSiliconLattice();
+        }
+    </script>
+</body>
+</html>
